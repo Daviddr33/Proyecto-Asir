@@ -1,0 +1,1341 @@
+#!/bin/bash
+
+
+
+
+				######################################
+				###### FUNCIONES ADICIONALES #########
+				######################################
+
+
+
+existe(){
+dir=$1
+if test -d $dir
+	then
+		return 5
+		elif test -f $dir 
+			then
+				return 3
+	else
+		return 0
+fi
+}
+
+estaexports(){
+dir2=$1
+grep $dir2 /etc/exports > fich1
+if test -s fich1
+	then
+		return 0
+	else
+		return 1
+fi
+}
+
+estasamba(){
+dir3=$1
+grep $dir3 /etc/samba/smb.conf > samba1
+if test -s samba1
+	then
+		return 0
+	else
+		return 1
+fi
+}
+
+estasambadirec(){
+dir4=$1
+grep $dir4 /etc/samba/smb.conf > samba2
+if test -s samba2
+	then
+		return 0
+	else
+		return 1
+fi
+}
+
+estausu(){
+grep $1 /etc/passwd > usu1
+if test -s usu1
+	then
+		return 1
+	else
+		return 0
+fi
+
+}
+
+essamba(){
+pdbedit -w -L > samba1
+grep $1 samba1 > samba2
+if test -s samba2
+	then
+		return 1
+	else
+		return 0
+fi
+}
+
+comparte(){
+cat /etc/samba/smb.conf > comp1
+grep $1 comp1 > comp2
+if test -s comp2
+	then
+		return 1
+	else
+		return 0
+fi
+}
+
+ipfa(){
+echo "$1" > ips #182.123.12.1
+cut -d"." -f1 ips > ipf1
+ipp1=`cat ipf1`
+return $ipp1
+cut -d"." -f2 ips > ipf2
+ipp2=`cat ip2`
+return $ipp2
+cut -d"." -f3 ips > ipf3
+ipp3=`cat ipf3`
+return $ipp3
+cut -d"." -f4 ips > ipf4
+ipp4=`cat ipf4`
+return $ipp4
+
+}
+
+
+				######################################
+				########### OPCION 1 NFS #############
+				######################################
+
+
+
+instalanfs(){
+echo "Instalación de NFS"
+echo "-------------------------"
+
+
+apt-get install nfs-common nfs-kernel-server
+}
+anadircarpeta(){
+echo "Añadir carpeta"
+echo "--------------"
+#Tengo que meter nombre y comprobar que exista y que no este en /etc/exports, que tenga los permisos pedidos y la ip
+
+#/lectura --> solo tiene permisos de lectura para todas las maquinas
+#/escritura --> tiene permisos de lectura y escritura para la maquina 192.168.1.43
+
+r1=121323;r2=2384238
+until test $r1 -eq 5 -a $r2 -eq 1
+do
+	echo -n "Dime el nombre del directorio que quieras compartir (ruta absoluta): ";read nomd
+	existe $nomd
+	let r1=$?	
+	estaexports $nomd
+	let r2=$?
+done
+
+r4="hola"
+until test "$r4" == "rw" -o "$r4" == "ro"
+do
+	echo -n "Dime los permisos que quieras ponerle a la carpeta(rw lectura y escritura o ro solo lectura): ";read permisos
+	r4=$permisos
+done
+	echo -n "Dame la ip donde quieras compartir la carpeta (ip solo para una o * para todas): ";read ip
+	echo "$nomd $ip($permisos)" > añadir
+	cat añadir >> /etc/exports
+	echo "Se ha añadido al fichero etc/exports los siguientes datos: $nomd $ip($permisos)"
+}
+quitarcarpeta(){
+#Pedir la carpeta hasta que exista y este en /etc/exports y quitarla
+r3=121323;r4=2384238
+until test $r3 -eq 5 -a $r4 -eq 0
+do
+	echo -n "Dime el nombre del directorio que quieras quitar (ruta absoluta): ";read nomd
+	existe $nomd
+	let r3=$?	
+	estaexports $nomd
+	let r4=$?
+done
+grep -v "$nomd" /etc/exports > exports
+mv exports /etc/
+echo "Se ha eliminado el directorio $nomd del archivo /etc/exports"
+}
+
+reiniciarnfs(){
+service nfs-kernel-server restart
+echo "Servicio reiniciado"																					
+}
+
+
+
+
+				######################################
+				###### OPCION 2 SAMBA PUBLICO ########
+				######################################
+
+
+
+instalasambapu(){
+echo "Instalacion de Samba"
+echo "--------------------"
+dpkg --list > sambains
+grep samba sambains > instalasamba
+
+if test -s instalasamba
+	then
+		echo "Ya esta el servicio SAMBA descargado"
+	else
+		echo "El servicio SAMBA no esta instalado, se instalara a continuacion:"
+		apt-get install samba samba-common smbclient cifs-utils 
+		echo "---------"
+		echo "Se ha instalado el servicio SAMBA"
+fi
+
+}
+
+anadecarpetapu(){
+echo "Añadir carpeta para compartir"
+echo "-----------------------------"
+echo -n "Dame el nombre que quieras ponerle a la carpeta a compartir: ";read seccion
+estasamba $seccion
+let r1=$?
+if test $r1 -eq 0
+	then
+		echo "ERROR"
+	else
+		r2=136526473264;r3=1732627423784238
+		until ((r2==1))
+		do
+			echo -n "Dime la ruta de la carpeta que quieras compartir: ";read nomd
+			estasambadirec $nomd
+			let r2=$?
+			existe $nomd
+			let r3=$?
+			if test $r3 -eq 5
+				then
+					echo "La carpeta ya esta creada"
+					echo "------------"
+				else
+					echo "No existe esa carpeta, se creara a continuacion: "
+					echo "------------"
+					mkdir $nomd
+					chmod 777 $nomd
+					echo "Carpeta creada"
+			fi
+		done
+		publica="asd";escritura="euwr"
+		until test $publica == "no" -o $publica == "si" -a $escritura == "no" -o $escritura == "si"
+		do
+			echo -n "Quieres que la carpeta sea publica: ";read publica
+			echo -n "Quieres que la carpeta se pueda escribir: ";read escritura
+		done
+		echo "Añadiendo los datos anteriores al fichero"
+echo "----------"
+echo "[$seccion]" >> /etc/samba/smb.conf
+echo "	path=$nomd" >> /etc/samba/smb.conf
+if test $publica = "si"
+	then
+		echo "	public=yes" >> /etc/samba/smb.conf
+	else
+		echo "	public=no" >> /etc/samba/smb.conf
+fi
+if test $escritura = "si"
+	then
+		echo "	writable=yes" >> /etc/samba/smb.conf
+	else
+		echo "	writable=no" >> /etc/samba/smb.conf
+fi
+echo " " >> /etc/samba/smb.conf
+fi
+
+}
+
+accedecarpetapu(){
+echo "Carpeta compartida desde W10"
+echo "----------------------------"
+echo -n "Dame la ip de la maquina de W10: ";read ipw
+echo "$ipw" > ips #182.123.12.1
+cut -d"." -f1 ips > ip1
+ipc1=`cat ip1`
+cut -d"." -f2 ips > ip2
+ipc2=`cat ip2`
+cut -d"." -f3 ips > ip3
+ipc3=`cat ip3`
+cut -d"." -f4 ips > ip4
+ipc4=`cat ip4`
+
+if test $ipc1 -ge "0" -a $ipc1 -le "255" -a $ipc2 -ge "0" -a $ipc2 -le "255" -a $ipc3 -ge "0" -a $ipc3 -le "255" -a $ipc4 -ge "0" -a $ipc4 -le "255"
+then
+	echo "Las carpetas de la Ip que has proporcionado son: "
+	smbclient --list $ipw
+	echo -n "Elige la carpeta que quieres ver su contenido (No hace falta ninguna contraseña): ";read nomcarp
+	echo "-----------------------------------------------"
+    echo "Accediendo a la carpeta $nomcarp (No hace falta ninguna contraseña)"
+    smbclient //$ipw/$nomcarp -c "ls" # -c se usa para pasar un comando a la linea de comandos de samba y con el ls muestro todo el contenido de la carpeta
+else
+    echo "La IP introducida no corresponde con ninguna permitida"
+fi
+}
+
+reiniciasambapu(){
+#Reinicio de servidor
+echo "Reiniciando servicio"
+echo "--------------------"
+service smbd restart
+
+echo "Servicio reiniciado"
+}
+
+
+
+
+				######################################
+				###### OPCION 3 SAMBA USUARIO ########
+				######################################
+
+
+
+instalasambapri(){
+echo "Instalacion de Samba"
+echo "--------------------"
+dpkg --list > instalasamba
+grep samba instalasamba > estasamba
+
+if test -s estasamba
+	then
+		echo "Ya esta el servicio SAMBA descargado"
+	else
+		echo "El servicio SAMBA no esta instalado, se instalara a continuacion:"
+		apt-get install samba samba-common smbclient cifs-utils 
+		echo "---------"
+		echo "Se ha instalado el servicio SAMBA"
+fi
+}
+
+crearususamba(){
+r1=2153131231231;r2=7435637453487
+until test $r1 = 1
+do
+	echo -n "Dime un usuario: ";read usu
+	estausu $usu
+	let r1=$?
+done
+essamba $usu
+let r2=$?
+if test $r2 = 1
+	then
+		echo "Ese usuario ya es Samba"
+	else
+		echo "Ese usuario no es Samba, se añadira a continuacion: "
+		echo "----------"
+		smbpasswd -a $usu
+		echo "----------"
+		echo "Se ha añadido el usuario a Samba"
+fi
+}
+
+eliminarususamba(){
+r1=216361723;r2=12673512673
+echo -n "Dime un usuario: ";read usu1
+essamba $usu1
+r1=$?
+comparte $usu1
+r2=$?
+if test $r1 -eq 1 -a $r2 -eq 0	
+	then
+		echo "Se borrara el usuario samba $usu  a continuacion: "
+		echo "----------"
+		smbpasswd -x $usu1
+		echo "-----------------"
+		echo "Ya no es un usuario samba"
+	else
+		echo "No se puede borrar ese usuario porque no es un usuario samba o esta compartiendo una carpeta"
+fi
+
+}
+
+anadircarpeta(){
+#privadoescritura privadorlectura carpetas a compartir
+echo "Se pediran a continuacion datos para poder compartir una carpeta: "
+#SECCION HASTA QUE NO ESTE EN SMB.CONF
+r1=32646237242462636427
+until ((r1==0))
+do
+	echo -n "Dame el nombre de la seccion: ";read seccion
+	cat /etc/samba/smb.conf > sec1
+	cut -d" " -f1 sec1 > sec2
+	grep $seccion sec2 > sec3
+	if test -s sec3
+		then
+			let r1=1
+		else
+			let r1=0
+	fi
+done
+
+#RUTA DE CARPETA HASTA QUE NO ESTE EN SMB.CONF Y HASTA Q EXISTA, SI NO EXISTE SE CREA
+r2=3264624527;r3=326462564523
+until test $r2 -eq 1 -a $r3 -eq 1
+do
+	echo -n "Dame la ruta de la carpeta: ";read ruta
+	grep path /etc/samba/smb.conf > ruta1
+	grep $ruta ruta1 > ruta2 
+	if test -s ruta2
+		then
+			r2=0
+		else
+			r2=1
+	fi
+	existe $ruta
+	if test $? -eq 5
+		then
+			let r3=1
+		else
+			mkdir $ruta
+			let r3=1
+	fi
+done
+
+#PERMISOS HASTA Q ESTEN BIEN INTRODUCIDOS
+escritura1=pqwpwqe
+until test $escritura1 == "no" -o $escritura1 == "yes"
+do
+	echo -n "Quieres que tenga permisos de escritura: ";read escritura
+	if test $escritura == "si"
+		then
+			escritura1=yes
+		elif test $escritura == "no"
+			then
+				escritura1=no
+		
+	fi
+done
+
+#COMPARTIR PARA GRUPO O USUARIO, SI ES GRUPO HASTA QUE EXISTA, SI ES USU HASTA Q EXISTA Y SEA SAMBA, UNA VEZ COMPROBADO LO ANTERIOR PREGUNTAR SI QUIERES COMPARTIRLA PARA ALGUIEN MAS
+respuesta=asd
+until test $respuesta == "no"
+do
+	echo -n "Para quien quieres compartir la carpeta (usuario o grupo): ";read compartir
+	if test $compartir == "grupo"
+		then
+			r3=123123
+			until ((r3==1))
+			do
+				echo -n "Dame el nombre del grupo: ";read grupo
+				cat /etc/group > grupo1
+				cut -d":" -f1 grupo1 > grupo2 
+				grep $grupo grupo2 > grupo3
+				if test -s grupo3
+					then
+						let r3=1
+					else
+						let r3=0
+				fi
+				touch usuariogrupo
+				if test -s usuariogrupo
+					then
+						echo -n ", @$grupo" >> usuariogrupo
+					else
+						echo -n "@$grupo" >> usuariogrupo
+				fi
+			done
+		elif test $compartir == "usuario"
+			then
+				r4=328477234;r5=32874823784
+				until test $r4 -eq 1 -a $r5 -eq 1
+				do
+					echo -n "Dame un usuario: ";read usuario
+					essamba $usuario
+					let r4=$?
+					cat /etc/passwd > usuario1
+					cut -d":" -f1 usuario1 > usuario2
+					grep $usuario usuario2 > usuario3
+					if test -s usuario3
+						then
+							let r5=1
+						else
+							let r5=74378344
+					fi
+					
+				done
+				touch usuariogrupo
+				if test -s usuariogrupo
+					then
+						echo -n ", $usuario" >> usuariogrupo
+					else
+						echo -n "$usuario" >> usuariogrupo
+				fi
+	fi
+	echo -n "Quieres seguir pidiendo datos: ";read respuesta
+done
+
+echo "---------------"
+echo "Se añaden los datos anteriores"
+echo "[$seccion]" >> /etc/samba/smb.conf
+echo "	path = $ruta " >> /etc/samba/smb.conf
+echo "	writable = $escritura1 " >> /etc/samba/smb.conf
+echo "	valid users = `cat usuariogrupo`" >> /etc/samba/smb.conf
+echo " "
+rm usuariogrupo
+}
+
+comprobarficherosamba(){
+#COMPROBACION DEL FICHERO /ETC/SAMBA/SMB.CONF	
+echo "COMPROBANDO ALGUN ERROR EN EL FICHERO"
+testparm
+
+
+}
+
+reiniciarsamba(){
+#Reinicio de servidor
+echo "Reiniciando servicio"
+echo "--------------------"
+service smbd restart
+
+echo "Servicio reiniciado"
+}
+
+
+
+
+				######################################
+				########### OPCION 4 FTP #############
+				######################################
+
+
+instalaftp(){
+echo "Instalacion de vFTP"
+echo "--------------------"
+dpkg --list > instalaftp
+grep vsftpd instalaftp > estaftp
+
+if test -s estaftp
+	then
+		echo "Ya esta el servicio vFTP esta descargado"
+	else
+		echo "El servicio vFTP no esta instalado, se instalara a continuacion:"
+		apt-get install vsftpd
+		echo "---------"
+		echo "Se ha instalado el servicio vFTP"
+fi
+}
+
+configuraftp(){
+
+#CON EL COMANDO SED NOS PERMITE BUSCAR ALGO DENTRO DEL FICHERO Y PODER REEMPLAZARLO CON MAS FACILIDAD
+#SED -I MODIFICA EL ARCHIVO EN EL LUGAR DE MOSTRAR SU CONTENIDO
+#"s/^anonymous_enable=.*/anonymous_enable=$anonimo/" NOS REEMPLAZA LO QUE HABIA ANTERIORMENTE POR LO NUEVO, BUSCA TODO LO QUE EMPIEZE POR "anonymous_enable=.*" Y LO CAMBIA POR "anonymous_enable=$anonimo", ASI PUEDES MODIFICAR UN FICHERO CON MAS FACILIDAD
+#SI QUIERES AÑADIR ALGO AL FINAL DEL FICHERO TAMBIEN LO PUEDES HACER CON EL SED, PONES " sed -i 
+
+echo "Se pediran datos para poder añadir al fichero vsftpd.conf para su configuracion: "
+echo "---------"
+echo " "
+echo "USURIOS LOCALES MORTADELO Y FILEMON"
+echo " "
+echo "---------"
+echo " "
+
+#ESTA LINEA CAMBIA SI ESTAN PERMITIDOS LOS USUARIOS ANONIMOS
+echo -n "¿Quieres que pueda conectarse usuarios anónimos?: ";read anonimo
+if test $anonimo == "si"
+	then
+		anonimo1=YES
+	else
+		anonimo1=NO
+fi
+sed -i "s/^anonymous_enable=.*/anonymous_enable=$anonimo1/" /etc/vsftpd.conf
+
+#ESTA LINEA CAMBIA SI SE PERMITEN USUARIOS LOCALES
+echo -n "¿Quieres que se conecten solo usuarios locales?: ";read usulocal
+if test $usulocal == "si"
+	then
+		usulocal1=YES
+	else
+		usulocal1=NO
+fi
+sed -i "s/^local_enable=.*/local_enable=$usulocal1/" /etc/vsftpd.conf 	
+
+#ESTA LINEA CAMBIA PERMISOS DE LOS USUARIOS LOCALES
+echo -n "¿Quieres que tengan permisos de descar y escritura?: ";read permisos
+if test $permisos == "si"
+	then
+		permisos1=YES
+	else
+		permisos1=NO
+fi
+while read linea
+do
+if test "$linea" == "#write_enable=YES" -o "$linea" == "#write_enable=NO"
+	then
+		sed -i "s/^#write_enable=.*/write_enable=$permisos1/" /etc/vsftpd.conf 	
+	elif test "$linea" == "write_enable=YES" -o "$linea" == "write_enable=NO"
+		then
+			sed -i "s/^write_enable=.*/write_enable=$permisos1/" /etc/vsftpd.conf 
+fi
+done < /etc/vsftpd.conf 	
+
+#ESTA LINEA ES DONDE ENJAULAMOS A UN USUARIO
+echo -n "¿Quieres enjaular algun usuario local?: ";read enjaular
+if test $enjaular == "si"
+	then
+		sed -i "s/^#chroot_local_user=.*/#chroot_local_user=NO/" /etc/vsftpd.conf 
+		echo -n "A que usuario quieres enjaular: ";read usuenjaular
+		if test $usuenjaular == "mortadelo"
+			then
+				rm /etc/vsftpd.chroot_list
+				echo "filemon" >> /etc/vsftpd.chroot_list
+				grep "allow_writeable_chroot" "/etc/vsftpd.conf" >> rootfich
+				if test -s rootfich
+					then
+						sed -i "s/^allow_writeable_chroot=.*/allow_writeable_chroot=YES/" /etc/vsftpd.conf
+				fi
+			else
+				rm /etc/vsftpd.chroot_list
+				echo "mortadelo" >> /etc/vsftpd.chroot_list
+				grep "allow_writeable_chroot" "/etc/vsftpd.conf" >> rootfich
+				if test -s rootfich
+					then
+						sed -i "s/^allow_writeable_chroot=.*/allow_writeable_chroot=YES/" /etc/vsftpd.conf
+				fi 
+		fi
+	else
+		echo "No se enjaulara ningun usuario"
+fi
+
+#Esta linea cambia el mensaje de bienvenida
+echo -n "Dime un mensaje de bienvenida: ";read bienvenida
+sed -i "s/^#ftpd_banner=.*/ftpd_banner=$bienvenida/" /etc/vsftpd.conf 
+sed -i "s/^ftpd_banner=.*/ftpd_banner=$bienvenida/" /etc/vsftpd.conf 
+
+#ESTA LINEA CAMBIA SI LOS USUARIOS ANONIMOS TIENE UN MENSAJE DE BIENVENIDA, SI LO TIENE TAMBIEN CAMBIA EL MENSAJE
+echo -n "Quieres que los usuarios anonimos tengan un mensaje de bienvenida: ";read bienvenidaanonimo
+if test $bienvenidaanonimo == "si"
+	then
+		echo -n "Dime el mensaje de bienvenida: ";read mensajeanonimo
+		bienvenidaanonimo1=YES
+		sed -i "s/^#dirmessage_format=.*/#dirmessage_format=$mensajeanonimo/" /etc/vsftpd.conf 
+	else
+		bienvenidaanonimo1=NO
+fi
+
+#Esta linea cambia el tiempo de inactividad antes de que se cierre la conexion.
+echo -n "Cuanto tiempo quieres que haya de inactividad (EN SEGUNDOS): ";read inactividad
+sed -i "s/^#idle_session_timeout=.*/#idle_session_timeout=3/" /etc/vsftpd.conf
+
+#ESTA LINEA CAMBIA EL MAXIMO DE CONEXION SIMULTANEAS.
+echo -n "Cuantas conexion quieres que haya: ";read conexionusu
+grep "max_clients" "/etc/vsftpd.conf" >> cliente1
+if test -s cliente1
+	then
+		sed -i "s/^max_clients=.*/max_clients=$conexionusu/" /etc/vsftpd.conf
+		echo "Se ha cambiado el maximo de clientes"
+	else
+		echo "max_clients=$cantidad" >> /etc/vsftpd.conf
+		echo "Se ha cambiado el maximo de clientes"
+fi
+
+#ESTA LINEA CAMBIA LA CANTIDAD DE ANCHO DE BANDA DE LOS USUARIOS LOCALES
+echo -n "Dime que cantidad de ancho de banda quieres que tengan los usuarios locales, elige entre 10 o 5 MB/s: ";read cantidad
+if test $cantidad -eq 5
+	then
+		cantidadt=5000000
+		grep "local_max_rate" "/etc/vsftpd.conf" >> fichero1
+		if test -s fichero1
+			then
+				sed -i "s/^local_max_rate=.*/local_max_rate=$cantidadt/" /etc/vsftpd.conf
+				echo "Se ha establecido el bando de ancha a 5MB/s"
+			else
+				echo "local_max_rate=$cantidadt" >> /etc/vsftpd.conf
+				echo "Se ha establecido el bando de ancha a 5MB/s"
+		fi
+		rm fichero1
+	elif test $cantidad -eq 10
+		then
+			cantidadt=10000000
+			grep "local_max_rate" "/etc/vsftpd.conf" >> fichero1
+			if test -s fichero1
+				then
+					sed -i "s/^local_max_rate=.*/local_max_rate=$cantidadt/" /etc/vsftpd.conf
+					echo "Se ha establecido el bando de ancha a 10MB/s"
+				else
+					echo "local_max_rate=$cantidadt" >> /etc/vsftpd.conf
+					echo "Se ha establecido el bando de ancha a 10MB/s"
+			fi
+			rm fichero1
+		else
+			echo "Cantidad no valida"	
+fi
+	
+#ESTA LINEA CAMBIA LA CANTIDAD DE ANCHO DE BANDA DE LOS USUARIOS ANONIMOS					
+echo -n "Dime que cantidad de ancho de banda quieres que tengan los usuarios locales, elige entre 1 o 5 MB/s: ";read cantidadanon
+if test $cantidadanon -eq 5
+	then
+		cantidadat=5000000
+		grep "anon_max_rate" "/etc/vsftpd.conf" >> fichero2
+		if test -s fichero2
+			then
+				sed -i "s/^anon_max_rate=.*/anon_max_rate=$cantidadat/" /etc/vsftpd.conf
+				echo "Se ha establecido el bando de ancha a 5MB/s"
+			else
+				echo "anon_max_rate=$cantidadat" >> /etc/vsftpd.conf
+				echo "Se ha establecido el bando de ancha a 5MB/s"
+		fi
+		rm fichero2
+	elif test $cantidadanon -eq 1
+		then
+			cantidadat=1000000
+			grep "anon_max_rate" "/etc/vsftpd.conf" >> fichero2
+			if test -s fichero2
+				then
+					sed -i "s/^anon_max_rate=.*/anon_max_rate=$cantidadat/" /etc/vsftpd.conf
+					echo "Se ha establecido el bando de ancha a 1MB/s"
+				else
+					echo "anon_max_rate=$cantidadat" >> /etc/vsftpd.conf
+					echo "Se ha establecido el bando de ancha a 1MB/s"
+			fi
+			rm fichero2
+		else
+			echo "Cantidad no valida"	
+fi
+
+}
+
+reiniciaftp(){
+echo "Se reiniciara el servicio vFTP"
+echo "--------------------"
+service vsftpd restart 
+echo "Se reinicio el servicio vFTP"
+}
+
+
+				######################################
+				########### OPCION 5 DHCP ############
+				######################################
+
+instaladhcp(){
+
+echo "Instalacion de DHCP"
+echo "--------------------"
+dpkg --list > instaladhcp
+grep  isc-dhcp-server instaladhcp > estadhcp
+
+if test -s estadhcp
+	then
+		echo "Ya esta el servicio DHCP esta descargado"
+	else
+		echo "El servicio DHCP no esta instalado, se instalara a continuacion:"
+		echo "---------"
+		apt-get install isc-dhcp-server
+		echo "---------"
+		echo "Se ha instalado el servicio DHCP"
+fi
+
+}
+
+ambito(){
+
+#RANGO DE IPS
+#/etc/dhcp/dhcpd.conf
+
+#Que la ip sea valida
+#Que el rango sea de la misma red
+#Que el el tiempo de concesion sea menor que el mayor
+
+ipc1=123123;ipc2=2831823;ipc3=2183123;ipc4=123321
+until test $ipc1 -ge "0" -a $ipc1 -le "255" -a $ipc2 -ge "0" -a $ipc2 -le "255" -a $ipc3 -ge "0" -a $ipc3 -le "255" -a $ipc4 -eq "0" 
+do
+	echo -n "Que ip van a tener las maquinas (x.x.x.0): ";read ip
+	echo "$ip" > ips #182.123.12.1
+	cut -d"." -f1 ips > ip1
+	ipc1=`cat ip1`
+	cut -d"." -f2 ips > ip2
+	ipc2=`cat ip2`
+	cut -d"." -f3 ips > ip3
+	ipc3=`cat ip3`
+	cut -d"." -f4 ips > ip4
+	ipc4=`cat ip4`
+done	
+echo "La IP es valida"
+echo "---------------"
+
+ipr1=123123;ipr2=1231231;ipr3=1231231;ipr4=162351235;iprr1=123123;iprr2=123123;iprr3=12313;iprr4=321312312
+until test $ipr1 -eq $iprr1 -a $ipr2 -eq $iprr2 -a $ipr3 -eq $iprr3 -a $ipr4 -lt $iprr4
+do
+	echo -n "Que rango quieres que tengan las ips: ";read rango1 rango2
+	ipfa $rango1 
+	ipr1=$1;ipr2=$2;ipr3=$3;ipr4=$4
+	ipfa $rango2
+	iprr1=$1;iprr2=$2;iprr3=$3;iprr4=$4	
+done
+echo "Rango establecido"
+echo "---------------"
+
+tiempomax=0;tiempo=9000000000
+until test $tiempomax -gt $tiempo
+do
+	echo -n "Dime el tiempo maximo que quieres que tengan la ip asignada: ";read tiempomax
+	echo -n "Dime el tiempo que quieres que tengan la ip asignada: ";read tiempo
+done
+echo "El tiempo de concesion es correcto"
+echo "--------"
+
+
+#PARA AÑADIR LA LINEA CON EL COMANDO SED SE PUEDE HACER
+sed -i "/# You can declare a class of clients and then do address allocation/i host $ip netmask 255.255.255.0 {" /etc/dhcp/dhcpd.conf
+
+sed -i "/# You can declare a class of clients and then do address allocation/i range $rango1 $rango2;" /etc/dhcp/dhcpd.conf
+
+sed -i "/# You can declare a class of clients and then do address allocation/i default-lease-time $tiempo;" /etc/dhcp/dhcpd.conf
+
+sed -i "/# You can declare a class of clients and then do address allocation/i max-lease-time $tiempomax;" /etc/dhcp/dhcpd.conf
+
+sed -i "/# You can declare a class of clients and then do address allocation/i }" /etc/dhcp/dhcpd.conf
+
+echo " "
+echo "Se ha guardado la configuracion."
+}
+
+reservaip(){
+#SE RESERVA CON LA MAC DE LA OTRA MAQUINA
+
+
+echo -n "Dime el nombre del host que quieras ponerle:  ";read host
+echo -n "Dime la MAC de la otra maquina: ";read mac
+echo -n "Dime la ip que quieras reservar: ";read ipreservada
+
+sed -i "/# You can declare a class of clients and then do address allocation/i host $host {" /etc/dhcp/dhcpd.conf
+
+sed -i "/# You can declare a class of clients and then do address allocation/i	hardware ethernet 08:00:27:5B:F4:E6;" /etc/dhcp/dhcpd.conf
+
+sed -i "/# You can declare a class of clients and then do address allocation/i	fixed-address $ipreservada;" /etc/dhcp/dhcpd.conf
+
+sed -i "/# You can declare a class of clients and then do address allocation/i }" /etc/dhcp/dhcpd.conf
+}
+
+reiniciadhcp(){
+
+echo "Se reiniciara el servicio DHCP"
+echo "--------"
+
+echo "REINICIANDO SERVICIO"
+service isc-dhcp-server restart
+
+echo "-------"
+echo "Se ha reiniciado el servicio"
+
+}
+
+
+
+				######################################
+				########### OPCION 6 SSH #############
+				######################################
+instalassh(){
+
+echo "Instalacion de SSH"
+echo "--------------------"
+dpkg --list > instalassh
+grep ssh instalassh > estassh
+cut -d" " -f3 estassh > estassh1
+cut -c1-3 estassh1 > estassh2
+if test -s estassh2
+	then
+		
+		echo "Ya esta el servicio SSH esta descargado"
+	else
+		echo "El servicio SSH no esta instalado, se instalara a continuacion:"
+		echo "---------"
+		apt-get install ssh
+		echo "---------"
+		echo "Se ha instalado el servicio SSH"
+fi
+
+}
+
+conexionssh(){
+r1=349587345
+until ((r1==1))
+do
+	echo -n "Dime la direccion IP a la que te quieres conectar: ";read ipssh
+	
+	echo "$ipssh" > ips #182.123.12.1
+	cut -d"." -f1 ips > ip1
+	ipssh1=`cat ip1`
+	cut -d"." -f2 ips > ip2
+	ipssh2=`cat ip2`
+	cut -d"." -f3 ips > ip3
+	ipssh3=`cat ip3`
+	cut -d"." -f4 ips > ip4
+	ipssh4=`cat ip4`
+	
+	echo "$ipssh1 $ipssh2 $ipssh3 $ipssh4"
+	if test $ipssh1 -ge "0" -a $ipssh1 -le "255" -a $ipssh2 -ge "0" -a $ipssh2 -le "255" -a $ipssh3 -ge "0" -a $ipssh3 -le "255" -a $ipssh4 -ge "0" -a $ipssh4 -le "255"
+		then
+			echo "La ip es valida"
+			r1=1
+		else
+			echo "La IP no es valida"
+			r1=0
+	fi
+done
+
+r2=1323123
+until ((r2==1))
+do
+	echo -n "Dime el nombre de usuario con el que te quieres conectar: ";read nomu
+	ssh alumno@$ipssh "cat /etc/passwd" > usuariossh
+	cut -d" " -f1 usuariossh > usuariossh1
+	grep $nomu usuariossh1 > usuariossh2
+	if test -s usuariossh2
+		then	
+			echo "Existe el usuario con el que te quieres conectar."
+			let r2=1
+		else
+			echo "No existe"
+			let r2=7381231782
+	fi
+done
+
+echo "Se conectara a la IP $ipssh con el usuario $nomu"
+ssh $nomu@$ipssh
+}
+
+copiarfichero1(){
+
+r3=349587345
+until ((r3==1))
+do
+	echo -n "Dime la direccion IP a la que te quieres conectar: ";read ipssh
+	
+	echo "$ipssh" > ips #182.123.12.1
+	cut -d"." -f1 ips > ip1
+	ipssh1=`cat ip1`
+	cut -d"." -f2 ips > ip2
+	ipssh2=`cat ip2`
+	cut -d"." -f3 ips > ip3
+	ipssh3=`cat ip3`
+	cut -d"." -f4 ips > ip4
+	ipssh4=`cat ip4`
+	
+	echo "$ipssh1 $ipssh2 $ipssh3 $ipssh4"
+	if test $ipssh1 -ge "0" -a $ipssh1 -le "255" -a $ipssh2 -ge "0" -a $ipssh2 -le "255" -a $ipssh3 -ge "0" -a $ipssh3 -le "255" -a $ipssh4 -ge "0" -a $ipssh4 -le "255"
+		then
+			echo "La ip es valida"
+			r3=1
+		else
+			echo "La IP no es valida"
+			r3=0
+	fi
+done
+
+echo " "
+echo "-----------------------------------"
+echo " "
+
+#COMPROBAR QUE EXISTA EL FICHERO EN EL SERVER
+echo "hola"
+r4=54213412561562
+until ((r4==3))
+do
+	echo -n "Dame un fichero: ";read ficherossh
+	existe $ficherossh
+	let r4=$?
+	if test $r4 -eq 3
+		then
+			echo "El fichero existe y se puede copiar."
+		else
+			echo "No existe"
+	fi
+done
+
+echo " "
+echo "-----------------------------------"
+echo " "
+
+#COMPROBAR QUE EXISTA EL USUARIO EN EL SERVER
+
+r5=1323123
+until ((r5==1))
+do
+	echo -n "Dime el nombre de usuario con el que te quieres conectar: ";read nomu
+	ssh alumno@$ipssh "cat /etc/passwd" > usuariossh
+	cut -d" " -f1 usuariossh > usuariossh1
+	grep $nomu usuariossh1 > usuariossh2
+	if test -s usuariossh2
+		then	
+			echo "Existe el usuario con el que te quieres conectar."
+			let r5=1
+		else
+			echo "No existe"
+			let r5=7381231782
+	fi
+done
+
+echo " "
+echo "-----------------------------------"
+echo " "
+			
+#COMPROBAR DIRECTORIO DND COPIAS EL FICHERO
+
+r4=621531
+until ((r4==1))
+do
+	echo -n "Dime el directorio donde quieres copiar el fichero: ";read directoriossh1
+	ssh alumno@$ipssh "find / -name $directoriossh1" > directoriocopia1
+	directoriosshfinal=`cat directoriocopia1`
+	if test -s directoriocopia1
+		then
+			echo " "
+			echo "-----------------------------------"
+			echo " "
+			echo "El directorio existe"
+			let r4=1
+		else
+			echo " "
+			echo "-----------------------------------"
+			echo " "
+			echo "No existe el directorio."
+			let r4=7381231782
+	fi
+done
+
+echo "------------"
+echo " "
+echo "Copiando el fichero en el directorio"
+scp $ficherossh $nomu@$ipssh:$directoriosshfinal
+}
+
+
+copiarfichero2(){
+
+#COMPROBAR IP
+r1=349587345
+until ((r1==1))
+do
+	echo -n "Dime la direccion IP a la que te quieres conectar: ";read ipssh
+	
+	echo "$ipssh" > ips #182.123.12.1
+	cut -d"." -f1 ips > ip1
+	ipssh1=`cat ip1`
+	cut -d"." -f2 ips > ip2
+	ipssh2=`cat ip2`
+	cut -d"." -f3 ips > ip3
+	ipssh3=`cat ip3`
+	cut -d"." -f4 ips > ip4
+	ipssh4=`cat ip4`
+	
+	echo "$ipssh1 $ipssh2 $ipssh3 $ipssh4"
+	if test $ipssh1 -ge "0" -a $ipssh1 -le "255" -a $ipssh2 -ge "0" -a $ipssh2 -le "255" -a $ipssh3 -ge "0" -a $ipssh3 -le "255" -a $ipssh4 -ge "0" -a $ipssh4 -le "255"
+		then
+			echo "La ip es valida"
+			r1=1
+		else
+			echo "La IP no es valida"
+			r1=0
+	fi
+done
+
+echo " "
+echo "-----------------------------------"
+echo " "
+
+#COMPROBAR QUE EXISTA EL FICHERO EN EL CLIENTE
+
+r2=621531
+until ((r2==1))
+do
+	echo -n "Dime el fichero que quieras copiar: ";read ficherossh2
+	ssh alumno@$ipssh "find / -name $ficherossh2" > ficherossh21
+	ficherosshfinal=`cat ficherossh21`
+	echo "$ficherosshfinal"
+	if test -s ficherossh21
+		then
+			echo " "
+			echo "-----------------------------------"
+			echo " "
+			echo "El fichero existe y se puede copiar"
+			let r2=1
+		else
+			echo " "
+			echo "-----------------------------------"
+			echo " "
+			echo "No existe el fichero."
+			let r2=7381231782
+	fi
+done
+
+echo " "
+echo "-----------------------------------"
+echo " "
+
+#COMPROBAR QUE EXISTE EL USUARIO
+
+r3=1323123
+until ((r3==1))
+do
+	echo -n "Dime el nombre de usuario con el que te quieres conectar: ";read nomu
+	ssh alumno@$ipssh "cat /etc/passwd" > usuariossh
+	cut -d" " -f1 usuariossh > usuariossh1
+	grep $nomu usuariossh1 > usuariossh2
+	if test -s usuariossh2
+		then	
+			echo "Existe el usuario con el que te quieres conectar."
+			let r3=1
+		else
+			echo "No existe"
+			let r3=7381231782
+	fi
+done
+
+echo " "
+echo "-----------------------------------"
+echo " "
+
+#COMPROBAR DIRECTORIO DND COPIAS EL FICHERO
+
+r4=621531
+until ((r4==1))
+do
+	echo -n "Dime el directorio donde quieres copiar el fichero: ";read directoriossh2
+	existe $directoriossh2
+	let r4=1
+	if test $r4 -eq 1
+		then
+			echo " "
+			echo "-----------------------------------"
+			echo " "
+			echo "Existe el directorio donde lo quieres copiar"
+			let r2=1
+		else
+			echo " "
+			echo "-----------------------------------"
+			echo " "
+			echo "No existe el directorio."
+			let r2=7381231782
+	fi
+done
+
+echo " "
+echo "-----------------------------------"
+echo " "
+
+
+scp $nomu@$ipssh:$ficherosshfinal $directoriossh2
+
+}
+
+reiniciassh(){
+
+echo "Se reiniciara el servicio SSH"
+echo "--------"
+
+echo "REINICIANDO SERVICIO"
+service ssh restart
+
+echo "-------"
+echo "Se ha reiniciado el servicio"
+
+}
+				######################################
+				########## MENUS OPCIONES ############
+				######################################
+
+
+nfs(){
+until ((opnfs==5))
+	do
+	clear
+		echo "1.-Instalación"
+		echo "2.-Añadir carpetas compartidas"
+		echo "3.-Quitar carpetas compartidas"
+		echo "4.-Reiniciar servicio"
+		echo "5.-Salir"
+		echo -n "Dime una opción: ";read opnfs
+		
+		case $opnfs in 
+			1)instalanfs;;
+			2)anadircarpeta;;
+			3)quitarcarpeta;;
+			4)reiniciarnfs;;
+			4)echo "Salir";;
+		esac 
+		read tecla
+	done
+}
+
+sambapublico(){
+until ((opsambapu==5))
+	do
+	clear
+		echo "1.-Instalación"
+		echo "2.-Añadir carpeta compartida publicamente"
+		echo "3.-Accerder a la carpeta compartida desde W10"
+		echo "4.-Reiniciar servicio"
+		echo "5.-Salir"
+		echo -n "Dime una opción: ";read opsambapu
+		
+		case $opsambapu in 
+			1)instalasambapu;;
+			2)anadecarpetapu;;
+			3)accedecarpetapu;;
+			4)reiniciasambapu;;
+			5)echo "Salir";;
+		esac 
+		read tecla
+	done
+}
+
+sambaprivado(){
+until ((opsambapri==7))
+	do
+	clear
+		echo "1.-Instalación"
+		echo "2.-Crear usuario samba"
+		echo "3.-Eliminar usuario samba"
+		echo "4.-Añadir carpeta compartida"
+		echo "5.-Comprobar fichero de configuracion"
+		echo "6.-Reiniciar el servicio"
+		echo "7.-Volver"
+		echo -n "Dime una opción: ";read opsambapri
+		
+		case $opsambapri in 
+			1)instalasambapri;;
+			2)crearususamba;;
+			3)eliminarususamba;;
+			4)anadircarpeta;;
+			5)comprobarficherosamba;;
+			6)reiniciarsamba;;
+			7)echo "Salir";;
+		esac 
+		read tecla
+	done
+}
+
+ftps(){
+until ((opftp==4))
+	do
+	clear
+		echo "1.-Instalación"
+		echo "2.-Configuración"
+		echo "3.-Reiniciar servicio"
+		echo "4.-Salir"
+		echo -n "Dime una opción: ";read opftp
+		
+		case $opftp in 
+			1)instalaftp;;
+			2)configuraftp;;
+			3)reiniciaftp;;
+			4)echo "Salir";;
+		esac 
+		read tecla
+	done
+}
+
+dhcp(){
+until ((opdhcp==4))
+	do
+	clear
+		echo "1.-Instalación"
+		echo "2.-Configuración"
+		echo "3.-Reiniciar servicios"
+		echo "4.-Salir"
+		echo -n "Dime una opción: ";read opdhcp
+		
+		case $opdhcp in 
+			1)instaladhcp;;
+			2)
+				op2=123
+				until ((op2==3))
+				do
+				clear
+					echo "CONFIGURACION DHCP"
+					echo "1.- Asignación de ámbito"
+					echo "2.- Reserva de una dirección IP"
+					echo "3.- Volver"
+					echo -n "Dame una opcion: ";read op2
+						case $op2 in
+							1)ambito;;
+							2)reservaip;;
+							3)echo "SALIR";;
+						esac
+					read tecla
+					done
+			;;
+			3)reiniciadhcp;;
+			4)echo "Salir";;
+		esac 
+		read tecla
+	done
+}
+
+sshs(){
+until ((opssh==6))
+	do
+	clear
+		echo "1.-Instalación"
+		echo "2.-Conexion cliente/servidor"
+		echo "3.-Copiar fichero de Xubuntu 1 a Xubuntu 2"
+		echo "4.-Copiar fichero de Xubuntu 2 a Xubuntu 1"
+		echo "5.-Reiniciar servicio"
+		echo "6.-Salir"
+		echo -n "Dime una opción: ";read opssh
+		
+		case $opssh in 
+			1)instalassh;;
+			2)conexionssh;;
+			3)copiarfichero1;;
+			4)copiarfichero2;;
+			5)reiniciassh;;
+			6)echo "Salir";;
+		esac 
+		read tecla
+	done
+}
+
+
+
+
+				######################################
+				######### MENU PRINCIPAL #############
+				######################################
+
+
+
+
+until ((op==7))
+    do
+    clear
+	  	echo "1.- Servicio NFS"
+		echo "2.- Servicio SAMBA PUBLICO"
+		echo "3.- Servicio SAMBA"
+		echo "4.- Servicio FTP"
+		echo "5.- Servicio DHCP"
+		echo "6.- Servicio ssh"
+		echo "7.- Salir"
+		echo -n "Dime una opcion: ";read op
+
+        case $op in 
+            1)nfs;;
+            2)sambapublico;;
+            3)sambaprivado;;
+            4)ftps;;
+            5)dhcp;;
+            6)sshs;;
+            7)echo "Salir";;
+        esac
+        read tecla
+    done
+
+
+
+
+
+
+
+
+
+
