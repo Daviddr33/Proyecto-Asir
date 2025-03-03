@@ -1,0 +1,13 @@
+El proyecto consta de un menu para configurar distintos tipos de servicios, esto es lo que esta en el archivo proyecto.txt, este archivo contiene todo el codigo del proyecto.
+
+La base del proyecto es el siguiente menu:
+
+1.- Servicio NFS
+2.- Servicio SAMBA PUBLICO
+3.- Servicio SAMBA
+4.- Servicio FTP
+5.- Servicio DHCP
+6.- Servicio ssh
+7.- Salir
+
+Donde se configura cada servicio por separado para poder utilizarlos.
